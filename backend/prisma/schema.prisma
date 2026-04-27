@@ -1,0 +1,95 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum RepeatFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum CompletionType {
+  COMPLETED
+  MISSED
+}
+
+enum TaskType {
+  Habit
+  OneTime
+}
+
+model User {
+  id             String          @id @default(uuid())
+  email          String          @unique
+  password       String
+  total_money    Decimal         @default(0)
+  goals          Goal[]
+  tasks          Task[]
+  completionLogs CompletionLog[]
+}
+
+model Goal {
+  id             String          @id @default(uuid())
+  user_id        String
+  title          String
+  target_amount  Decimal
+  current_amount Decimal         @default(0)
+  status         GoalStatus      @default(ACTIVE)
+  user           User            @relation(fields: [user_id], references: [id])
+  taskGoals      TaskGoal[]
+  completionLogs CompletionLog[]
+}
+
+model Task {
+  id              String           @id @default(uuid())
+  user_id         String
+  title           String
+  type            TaskType         @default(OneTime)
+  isRecurring     Boolean          @default(false)
+  repeatFrequency RepeatFrequency? // in days, only applicable if isRecurring is true
+  deadline        DateTime
+  date            DateTime         @default(now())
+  user            User             @relation(fields: [user_id], references: [id])
+  taskGoals       TaskGoal[]
+  completionLogs  CompletionLog[]
+}
+
+model TaskGoal {
+  task_id       String
+  goal_id       String
+  reward_amount Decimal
+  task          Task    @relation(fields: [task_id], references: [id])
+  goal          Goal    @relation(fields: [goal_id], references: [id])
+
+  @@id([task_id, goal_id]) // composite primary key
+}
+
+model CompletionLog {
+  id           String         @id @default(uuid())
+  task_id      String
+  user_id      String
+  goal_id      String
+  type         CompletionType
+  money_earned Decimal
+  createdAt    DateTime       @default(now())
+  task         Task           @relation(fields: [task_id], references: [id])
+  user         User           @relation(fields: [user_id], references: [id])
+  goal         Goal           @relation(fields: [goal_id], references: [id])
+}
