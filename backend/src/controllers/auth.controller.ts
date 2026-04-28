@@ -14,7 +14,21 @@ export const register = async (req: Request, res: Response) => {
     }
   }
 };
+export const login = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+  try {
+    const token = await authService.login(email, password);
+    res.status(200).json({ token });
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Something went wrong" });
+    }
+  }
+};
 
 export default {
   register,
+  login,
 };
