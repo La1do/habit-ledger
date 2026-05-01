@@ -11,6 +11,7 @@
     "moduleResolution": "bundler",
     "target": "esnext",
     "types": [],
+    "typeRoots": ["./src/types", "./node_modules/@types"],
     // For nodejs:
     // "lib": ["esnext"],
     // "types": ["node"],
