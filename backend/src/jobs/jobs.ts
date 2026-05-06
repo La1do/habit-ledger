@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import prisma from "../config/prisma";
+import { createLedgerLog } from "../services/ledger.service";
 
 const getNextDeadline = (current: Date, frequency: string): Date => {
   const next = new Date(current);
@@ -41,7 +42,6 @@ export const confirmDailyTasks = async () => {
   await prisma.$transaction(async (tx) => {
     for (const task of tasks) {
       if (task.status === "DONE_TODAY") {
-        // Lấy user để check total_money
         const user = await tx.user.findUnique({ where: { id: task.user_id } });
         if (!user) continue;
 
@@ -51,7 +51,6 @@ export const confirmDailyTasks = async () => {
         for (const tg of task.taskGoals) {
           const goal = await tx.goal.findUnique({ where: { id: tg.goal_id } });
 
-          // Bỏ qua goal đã completed (nếu không phải saving mode) hoặc soft deleted
           if (!goal || goal.deleted_at !== null) continue;
           if (goal.status === "COMPLETED" && !goal.is_saving) continue;
 
@@ -65,16 +64,14 @@ export const confirmDailyTasks = async () => {
             data: { current_amount: { increment: rewardAmount } },
           });
 
-          // Ghi CompletionLog (immutable)
-          await tx.completionLog.create({
-            data: {
-              task: { connect: { id: task.id } },
-              user: { connect: { id: task.user_id } },
-              goal: { connect: { id: tg.goal_id } },
-              type: "COMPLETED",
-              reward_status: rewardStatus,
-              money_earned: rewardAmount,
-            },
+          // Ghi CompletionLog qua ledger (immutable hash chain)
+          await createLedgerLog(tx, {
+            task_id: task.id,
+            user_id: task.user_id,
+            goal_id: tg.goal_id,
+            type: "COMPLETED",
+            reward_status: rewardStatus,
+            money_earned: tg.reward_amount,
           });
 
           // Check goal completion (chỉ khi không phải saving mode)
@@ -88,14 +85,12 @@ export const confirmDailyTasks = async () => {
             });
           }
 
-          // Chỉ trừ tiền nếu đủ
           if (!isDebt) {
             remainingBalance -= rewardAmount;
             totalDeducted += rewardAmount;
           }
         }
 
-        // Trừ tổng từ user.total_money
         if (totalDeducted > 0) {
           await tx.user.update({
             where: { id: task.user_id },

@@ -9,7 +9,7 @@ export const linkTaskGoal = async (req: Request, res: Response) => {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const { task_id } = req.params;
+    const task_id = req.params.task_id as string;
     const { goal_id, reward_amount } = req.body;
     const taskGoal = await linkTaskGoalService(user_id, task_id, { goal_id, reward_amount });
     res.status(201).json(taskGoal);
@@ -29,7 +29,8 @@ export const unlinkTaskGoal = async (req: Request, res: Response) => {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const { task_id, goal_id } = req.params;
+    const task_id = req.params.task_id as string;
+    const goal_id = req.params.goal_id as string;
     await unlinkTaskGoalService(user_id, task_id, goal_id);
     res.status(200).json({ message: "Task-goal link removed successfully" });
   } catch (error) {

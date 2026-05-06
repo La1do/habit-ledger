@@ -99,7 +99,7 @@ Tạo task mới.
   "type": "Habit",
   "isRecurring": true,
   "repeatFrequency": "DAILY",
-  "deadline": null
+  "deadline": "2026-05-10T00:00:00.000Z"
 }
 ```
 
@@ -132,7 +132,7 @@ Cập nhật task (partial update).
 }
 ```
 
-**Status transition rule**: chỉ cho phép `PENDING → DONE_TODAY`
+**Status transition rule**: chỉ cho phép `PENDING → DONE_TODAY` qua endpoint này
 
 **Response 200** — updated task object
 
@@ -151,9 +151,23 @@ Xóa task.
 { "message": "Task deleted successfully" }
 ```
 
+---
+
+### PATCH /tasks/:task_id/complete 🔒
+Toggle trạng thái hoàn thành task.
+
+- `PENDING → DONE_TODAY`
+- `DONE_TODAY → PENDING` (undone)
+
+Chỉ đổi status, không cập nhật tiền (tiền được xử lý bởi scheduler).
+
+**Response 200** — updated task object
+
 **Response 400**
 ```json
-{ "error": "Not found or unauthorized" }
+{ "error": "Task is already completed" }
+{ "error": "Cannot complete a missed task" }
+{ "error": "Cannot complete task past its deadline" }
 ```
 
 ---
@@ -161,7 +175,7 @@ Xóa task.
 ## Goals
 
 ### GET /goals 🔒
-Lấy tất cả goals của user hiện tại.
+Lấy tất cả goals của user (không bao gồm đã soft delete).
 
 **Response 200**
 ```json
@@ -171,8 +185,10 @@ Lấy tất cả goals của user hiện tại.
     "user_id": "uuid",
     "title": "Mua laptop",
     "target_amount": "10000000",
-    "current_amount": "0",
-    "status": "ACTIVE"
+    "current_amount": "500000",
+    "status": "ACTIVE",
+    "is_saving": false,
+    "deleted_at": null
   }
 ]
 ```
@@ -196,25 +212,86 @@ Tạo goal mới.
 
 **Response 201** — goal object
 
+---
+
+### PUT /goals/:goal_id 🔒
+Cập nhật goal (partial update).
+
+**Request Body** — tất cả fields đều optional
+```json
+{
+  "title": "Mua laptop gaming",
+  "target_amount": 15000000,
+  "is_saving": true
+}
+```
+
+**Validation**
+- `target_amount`: phải > 0 và >= `current_amount` (không được giảm xuống dưới số đã tích lũy)
+- `is_saving = true`: goal sẽ không bao giờ set `COMPLETED` dù đạt target
+
+**Response 200** — updated goal object
+
 **Response 400**
 ```json
-{ "error": "target_amount must be greater than 0" }
+{ "error": "target_amount cannot be less than current_amount" }
+```
+
+---
+
+### GET /goals/:goal_id/history 🔒
+Lịch sử earn tiền của goal (chỉ SETTLED logs).
+
+**Response 200**
+```json
+[
+  {
+    "id": "uuid",
+    "money_earned": "50000",
+    "createdAt": "2026-05-04T00:01:00.000Z",
+    "task": {
+      "id": "uuid",
+      "title": "Đọc sách"
+    }
+  }
+]
 ```
 
 ---
 
 ### DELETE /goals/:goal_id 🔒
-Xóa goal. Task liên quan **không bị xóa**, chỉ xóa quan hệ TaskGoal và CompletionLog.
+Soft delete goal — ẩn khỏi danh sách, không xóa khỏi DB.
 
 **Response 200**
 ```json
 { "message": "Goal deleted successfully" }
 ```
 
-**Response 400**
+---
+
+## Users
+
+### GET /users/me/summary 🔒
+Tổng quan ví và goals của user.
+
+**Response 200**
 ```json
-{ "error": "Not found or unauthorized" }
+{
+  "total_money": 4500000,
+  "total_earned": 500000,
+  "total_debt": 50000,
+  "goals_completed": 2,
+  "goals_active": 3
+}
 ```
+
+| Field | Mô tả |
+|-------|-------|
+| total_money | Số tiền hiện có trong ví |
+| total_earned | Tổng tiền đã earn thành công (SETTLED) |
+| total_debt | Tổng tiền nợ (earn nhưng không đủ tiền trừ) |
+| goals_completed | Số goals đã đạt target |
+| goals_active | Số goals đang active |
 
 ---
 
@@ -234,7 +311,7 @@ Gắn task với goal.
 **Validation**
 - `goal_id`: bắt buộc, goal phải thuộc user
 - `reward_amount`: phải > 0
-- Không được gắn trùng (task-goal đã tồn tại)
+- Không được gắn trùng
 
 **Response 201**
 ```json
@@ -260,9 +337,46 @@ Bỏ gắn task khỏi goal.
 { "message": "Task-goal link removed successfully" }
 ```
 
-**Response 400**
+---
+
+## Scheduler
+
+### POST /scheduler/run 🔒
+Trigger scheduler thủ công (dùng để test).
+
+Thực hiện:
+- Tasks `DONE_TODAY` → tính reward, ghi log, set `COMPLETED` (hoặc reset nếu recurring)
+- Tasks `PENDING` quá deadline → set `MISSED`
+- Goals đạt target → set `COMPLETED` (trừ khi `is_saving = true`)
+
+**Response 200**
 ```json
-{ "error": "Not found or unauthorized" }
+{
+  "message": "Scheduler ran successfully",
+  "confirmed": 3,
+  "missed": 1
+}
+```
+
+---
+
+## Ledger — Immutable Hash Chain
+
+### Cơ chế
+
+Mỗi `CompletionLog` có 2 fields đặc biệt:
+
+| Field | Mô tả |
+|-------|-------|
+| `hash` | SHA-256 của `task_id + goal_id + user_id + money_earned + previousHash` |
+| `previousHash` | Hash của log liền trước (genesis = `"0000000000000000"`) |
+
+Nếu ai sửa 1 log → hash thay đổi → log sau không khớp → phát hiện gian lận.
+
+### Verify chain (future API)
+
+```
+GET /api/ledger/verify  — kiểm tra toàn bộ chain có hợp lệ không
 ```
 
 ---
@@ -275,3 +389,5 @@ Bỏ gắn task khỏi goal.
 | TaskType | `Habit`, `OneTime` |
 | RepeatFrequency | `DAILY`, `WEEKLY`, `MONTHLY` |
 | GoalStatus | `ACTIVE`, `COMPLETED` |
+| CompletionType | `COMPLETED`, `MISSED` |
+| RewardStatus | `SETTLED`, `DEBT` |

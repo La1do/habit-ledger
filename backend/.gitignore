@@ -5,3 +5,5 @@ doc.txt
 /src/generated/prisma
 .kiro
 postman-tests.md
+# Test coverage output (auto-generated)
+coverage/
