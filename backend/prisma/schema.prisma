@@ -35,6 +35,11 @@ enum CompletionType {
   MISSED
 }
 
+enum RewardStatus {
+  SETTLED
+  DEBT
+}
+
 enum TaskType {
   Habit
   OneTime
@@ -57,6 +62,8 @@ model Goal {
   target_amount  Decimal
   current_amount Decimal         @default(0)
   status         GoalStatus      @default(ACTIVE)
+  is_saving      Boolean         @default(false)
+  deleted_at     DateTime?
   user           User            @relation(fields: [user_id], references: [id])
   taskGoals      TaskGoal[]
   completionLogs CompletionLog[]
@@ -88,14 +95,22 @@ model TaskGoal {
 }
 
 model CompletionLog {
-  id           String         @id @default(uuid())
-  task_id      String
-  user_id      String
-  goal_id      String
-  type         CompletionType
-  money_earned Decimal
-  createdAt    DateTime       @default(now())
-  task         Task           @relation(fields: [task_id], references: [id])
-  user         User           @relation(fields: [user_id], references: [id])
-  goal         Goal           @relation(fields: [goal_id], references: [id])
+  id            String         @id @default(uuid())
+  task_id       String
+  user_id       String
+  goal_id       String
+  type          CompletionType
+  reward_status RewardStatus   @default(SETTLED)
+  money_earned  Decimal
+  createdAt     DateTime       @default(now())
+  task          Task           @relation(fields: [task_id], references: [id])
+  user          User           @relation(fields: [user_id], references: [id])
+  goal          Goal           @relation(fields: [goal_id], references: [id])
+}
+
+model SchedulerRun {
+  id         String   @id @default(uuid())
+  ran_at     DateTime @default(now())
+  confirmed  Int
+  missed     Int
 }
