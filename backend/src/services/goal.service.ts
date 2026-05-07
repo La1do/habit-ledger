@@ -1,4 +1,5 @@
 import prisma from "../config/prisma";
+import { calculatePendingForUser } from "./reward.service";
 
 export const createGoal = async (
   user_id: string,
@@ -21,9 +22,18 @@ export const createGoal = async (
 };
 
 export const getGoals = async (user_id: string) => {
-  return prisma.goal.findMany({
-    where: { user_id, deleted_at: null },
-  });
+  const [goals, { pendingByGoal }] = await Promise.all([
+    prisma.goal.findMany({ where: { user_id, deleted_at: null } }),
+    calculatePendingForUser(user_id),
+  ]);
+
+  // Cộng pending vào current_amount (computed, không lưu DB)
+  return goals.map((goal) => ({
+    ...goal,
+    current_amount: (
+      Number(goal.current_amount) + (pendingByGoal[goal.id] ?? 0)
+    ).toString(),
+  }));
 };
 
 export const updateGoal = async (

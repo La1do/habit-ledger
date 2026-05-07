@@ -1,5 +1,35 @@
 import prisma from "../config/prisma";
+import type { Decimal } from "../generated/prisma/internal/prismaNamespace";
 
+// ─── Helper: tính pending reward cho user (in-memory, không update DB) ────────
+// Tìm tất cả tasks DONE_TODAY có TaskGoal → sum reward_amount theo goal_id
+export interface PendingRewardResult {
+  pendingByGoal: Record<string, number>  // goal_id → pending amount
+  totalPending: number                    // tổng pending của user
+}
+
+export const calculatePendingForUser = async (user_id: string): Promise<PendingRewardResult> => {
+  // Lấy tất cả tasks DONE_TODAY của user có gắn goal
+  const doneTodayTasks = await prisma.task.findMany({
+    where: { user_id, status: "DONE_TODAY" },
+    include: { taskGoals: true },
+  });
+
+  const pendingByGoal: Record<string, number> = {};
+  let totalPending = 0;
+
+  for (const task of doneTodayTasks) {
+    for (const tg of task.taskGoals) {
+      const amount = Number(tg.reward_amount as Decimal);
+      pendingByGoal[tg.goal_id] = (pendingByGoal[tg.goal_id] ?? 0) + amount;
+      totalPending += amount;
+    }
+  }
+
+  return { pendingByGoal, totalPending };
+};
+
+// ─── Toggle complete task (chỉ đổi status, KHÔNG update DB tiền) ─────────────
 export const completeTask = async (user_id: string, task_id: string) => {
   // 1. Check task tồn tại + thuộc user
   const task = await prisma.task.findFirst({
@@ -22,13 +52,11 @@ export const completeTask = async (user_id: string, task_id: string) => {
     throw new Error("Cannot complete a missed task");
   }
 
-  // 4. Toggle status only — tiền sẽ được tính bởi scheduler
+  // 4. Toggle status only — tiền được tính bởi scheduler khi deadline đến
   const newStatus = task.status === "PENDING" ? "DONE_TODAY" : "PENDING";
 
-  const updatedTask = await prisma.task.update({
+  return prisma.task.update({
     where: { id: task_id },
     data: { status: newStatus },
   });
-
-  return updatedTask;
 };

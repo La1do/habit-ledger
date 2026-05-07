@@ -96,7 +96,7 @@ model TaskGoal {
 
 model CompletionLog {
   id            String         @id @default(uuid())
-  task_id       String
+  task_id       String?
   user_id       String
   goal_id       String
   type          CompletionType
@@ -105,7 +105,7 @@ model CompletionLog {
   hash          String
   previousHash  String
   createdAt     DateTime       @default(now())
-  task          Task           @relation(fields: [task_id], references: [id])
+  task          Task?          @relation(fields: [task_id], references: [id], onDelete: SetNull)
   user          User           @relation(fields: [user_id], references: [id])
   goal          Goal           @relation(fields: [goal_id], references: [id])
 }

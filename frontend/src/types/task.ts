@@ -26,6 +26,16 @@ export interface Task {
   repeatFrequency: RepeatFrequency | null
   deadline: string | null
   date: string
+  taskGoals?: Array<{
+    task_id: string
+    goal_id: string
+    reward_amount: string
+    goal: {
+      id: string
+      title: string
+      status: string
+    }
+  }>
 }
 
 export interface CreateTaskInput {

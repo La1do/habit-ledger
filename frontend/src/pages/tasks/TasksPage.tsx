@@ -47,6 +47,12 @@ export function TasksPage() {
   const invalidateTasks = () =>
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks })
 
+  const invalidateAfterComplete = () => {
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks })
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.goals })
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userSummary })
+  }
+
   const createMutation = useMutation({
     mutationFn: (data: CreateTaskInput) => tasksApi.createTask(data),
     onSuccess: () => { invalidateTasks(); setDialog(null) },
@@ -65,7 +71,7 @@ export function TasksPage() {
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => tasksApi.completeTask(id),
-    onSuccess: invalidateTasks,
+    onSuccess: invalidateAfterComplete,
   })
 
   const linkMutation = useMutation({

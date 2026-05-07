@@ -31,6 +31,7 @@ export function DashboardPage() {
     mutationFn: (taskId: string) => tasksApi.completeTask(taskId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks })
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.goals })
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userSummary })
     },
   })
