@@ -1,24 +1,18 @@
-import { Check, RotateCcw, Pencil, Trash2, Link2, Unlink } from 'lucide-react'
+import { Check, RotateCcw, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { formatMoney, formatDate } from '@/utils/format'
+import { formatDate } from '@/utils/format'
 import { cn } from '@/utils/cn'
-import type { Task, Goal, TaskGoal } from '@/types'
+import type { Task } from '@/types'
 import { TaskStatus, TaskType } from '@/types'
-
-interface TaskGoalWithGoal extends TaskGoal {
-  goal: Goal
-}
 
 interface TaskCardProps {
   task: Task
-  linkedGoals: TaskGoalWithGoal[]
   onToggleComplete: (id: string) => void
   onEdit: (task: Task) => void
   onDelete: (id: string) => void
-  onLinkGoal: (taskId: string) => void
-  onUnlinkGoal: (taskId: string, goalId: string) => void
+  onOpenGoalManager: (task: Task) => void
 }
 
 function getStatusBadgeVariant(status: TaskStatus) {
@@ -41,28 +35,33 @@ function getStatusLabel(status: TaskStatus) {
 
 export function TaskCard({
   task,
-  linkedGoals,
   onToggleComplete,
   onEdit,
   onDelete,
-  onLinkGoal,
-  onUnlinkGoal,
+  onOpenGoalManager,
 }: TaskCardProps) {
   const canToggle =
     task.status === TaskStatus.PENDING || task.status === TaskStatus.DONE_TODAY
   const canEdit =
     task.status === TaskStatus.PENDING || task.status === TaskStatus.DONE_TODAY
   const isDone = task.status === TaskStatus.DONE_TODAY
+  const linkedGoals = task.taskGoals ?? []
 
   return (
     <Card>
-      <CardContent className="pt-4 space-y-3">
+      <CardContent className="pt-4 space-y-2">
         {/* Header row */}
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+          {/* Clickable title area → mở goal manager */}
+          <button
+            type="button"
+            className="flex items-center gap-2 min-w-0 flex-1 text-left group"
+            onClick={() => onOpenGoalManager(task)}
+            title="Quản lý goals"
+          >
             <span
               className={cn(
-                'text-sm font-medium truncate',
+                'text-sm font-medium truncate group-hover:text-primary transition-colors',
                 isDone && 'line-through text-muted-foreground'
               )}
             >
@@ -74,7 +73,12 @@ export function TaskCard({
             <Badge variant="outline" className="shrink-0 text-xs">
               {task.type === TaskType.Habit ? 'Habit' : 'OneTime'}
             </Badge>
-          </div>
+            {linkedGoals.length > 0 && (
+              <Badge variant="secondary" className="shrink-0 text-xs">
+                🎯 {linkedGoals.length}
+              </Badge>
+            )}
+          </button>
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
@@ -83,7 +87,7 @@ export function TaskCard({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={() => onToggleComplete(task.id)}
+                onClick={(e) => { e.stopPropagation(); onToggleComplete(task.id) }}
                 title={isDone ? 'Bỏ hoàn thành' : 'Đánh dấu hoàn thành'}
               >
                 {isDone ? (
@@ -98,7 +102,7 @@ export function TaskCard({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={() => onEdit(task)}
+                onClick={(e) => { e.stopPropagation(); onEdit(task) }}
                 title="Chỉnh sửa"
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -108,7 +112,7 @@ export function TaskCard({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={() => onDelete(task.id)}
+              onClick={(e) => { e.stopPropagation(); onDelete(task.id) }}
               title="Xóa"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -118,45 +122,13 @@ export function TaskCard({
 
         {/* Meta info */}
         {(task.deadline || task.isRecurring) && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground pl-0">
             {task.deadline && <span>Hạn: {formatDate(task.deadline)}</span>}
             {task.isRecurring && task.repeatFrequency && (
               <span>Lặp: {task.repeatFrequency}</span>
             )}
           </div>
         )}
-
-        {/* Linked goals */}
-        <div className="space-y-1">
-          {linkedGoals.map((tg) => (
-            <div
-              key={tg.goal_id}
-              className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1"
-            >
-              <span className="text-muted-foreground truncate">
-                🎯 {tg.goal.title} — {formatMoney(tg.reward_amount)}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 ml-1 shrink-0"
-                onClick={() => onUnlinkGoal(task.id, tg.goal_id)}
-                title="Bỏ gắn"
-              >
-                <Unlink className="h-3 w-3 text-muted-foreground" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs text-muted-foreground px-2"
-            onClick={() => onLinkGoal(task.id)}
-          >
-            <Link2 className="h-3 w-3 mr-1" />
-            Gắn goal
-          </Button>
-        </div>
       </CardContent>
     </Card>
   )

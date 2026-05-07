@@ -15,24 +15,19 @@ import {
 } from '@/components/ui/dialog'
 import { TaskCard } from './components/TaskCard'
 import { TaskForm } from './components/TaskForm'
-import { TaskGoalLink } from './components/TaskGoalLink'
-import type { Task, CreateTaskInput, UpdateTaskInput, Goal, TaskGoal } from '@/types'
-import { GoalStatus } from '@/types'
-
-interface TaskGoalWithGoal extends TaskGoal {
-  goal: Goal
-}
+import { TaskGoalManager } from './components/TaskGoalManager'
+import type { Task, CreateTaskInput, UpdateTaskInput } from '@/types'
 
 type DialogMode =
   | { type: 'create' }
   | { type: 'edit'; task: Task }
-  | { type: 'link'; taskId: string }
   | { type: 'delete'; taskId: string }
   | null
 
 export function TasksPage() {
   const queryClient = useQueryClient()
   const [dialog, setDialog] = useState<DialogMode>(null)
+  const [goalManagerTask, setGoalManagerTask] = useState<Task | null>(null)
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: QUERY_KEYS.tasks,
@@ -77,7 +72,13 @@ export function TasksPage() {
   const linkMutation = useMutation({
     mutationFn: ({ taskId, goalId, rewardAmount }: { taskId: string; goalId: string; rewardAmount: number }) =>
       taskGoalsApi.linkTaskGoal(taskId, goalId, rewardAmount),
-    onSuccess: () => { invalidateTasks(); setDialog(null) },
+    onSuccess: () => {
+      invalidateTasks()
+      // Cập nhật goalManagerTask với data mới nhất
+      if (goalManagerTask) {
+        void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks })
+      }
+    },
   })
 
   const unlinkMutation = useMutation({
@@ -85,11 +86,6 @@ export function TasksPage() {
       taskGoalsApi.unlinkTaskGoal(taskId, goalId),
     onSuccess: invalidateTasks,
   })
-
-  // Backend returns tasks without taskGoals embedded — show empty until backend supports it
-  const getLinkedGoals = (_taskId: string): TaskGoalWithGoal[] => []
-
-  const activeGoals = goals.filter((g) => g.status === GoalStatus.ACTIVE)
 
   const handleCreateSubmit = async (data: CreateTaskInput | UpdateTaskInput) => {
     await createMutation.mutateAsync(data as CreateTaskInput)
@@ -100,10 +96,18 @@ export function TasksPage() {
     await updateMutation.mutateAsync({ id: dialog.task.id, data: data as UpdateTaskInput })
   }
 
-  const handleLinkSubmit = async (goalId: string, rewardAmount: number) => {
-    if (dialog?.type !== 'link') return
-    await linkMutation.mutateAsync({ taskId: dialog.taskId, goalId, rewardAmount })
+  const handleLinkGoal = async (taskId: string, goalId: string, rewardAmount: number) => {
+    await linkMutation.mutateAsync({ taskId, goalId, rewardAmount })
   }
+
+  const handleUnlinkGoal = (taskId: string, goalId: string) => {
+    unlinkMutation.mutate({ taskId, goalId })
+  }
+
+  // Lấy task mới nhất từ cache để goalManagerTask luôn có data cập nhật
+  const currentGoalManagerTask = goalManagerTask
+    ? (tasks.find((t) => t.id === goalManagerTask.id) ?? goalManagerTask)
+    : null
 
   return (
     <div className="space-y-4">
@@ -117,7 +121,7 @@ export function TasksPage() {
 
       {tasksLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
       ) : tasks.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">
@@ -129,16 +133,25 @@ export function TasksPage() {
             <TaskCard
               key={task.id}
               task={task}
-              linkedGoals={getLinkedGoals(task.id)}
               onToggleComplete={(id) => completeMutation.mutate(id)}
               onEdit={(t) => setDialog({ type: 'edit', task: t })}
               onDelete={(id) => setDialog({ type: 'delete', taskId: id })}
-              onLinkGoal={(id) => setDialog({ type: 'link', taskId: id })}
-              onUnlinkGoal={(taskId, goalId) => unlinkMutation.mutate({ taskId, goalId })}
+              onOpenGoalManager={(t) => setGoalManagerTask(t)}
             />
           ))}
         </div>
       )}
+
+      {/* Goal Manager Popup */}
+      <TaskGoalManager
+        task={currentGoalManagerTask}
+        allGoals={goals}
+        isOpen={!!goalManagerTask}
+        onClose={() => setGoalManagerTask(null)}
+        onLink={handleLinkGoal}
+        onUnlink={handleUnlinkGoal}
+        isLinking={linkMutation.isPending}
+      />
 
       {/* Create Dialog */}
       <Dialog open={dialog?.type === 'create'} onOpenChange={(open) => !open && setDialog(null)}>
@@ -166,24 +179,6 @@ export function TasksPage() {
               onSubmit={handleEditSubmit}
               onCancel={() => setDialog(null)}
               isLoading={updateMutation.isPending}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Link Goal Dialog */}
-      <Dialog open={dialog?.type === 'link'} onOpenChange={(open) => !open && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Gắn task với goal</DialogTitle>
-          </DialogHeader>
-          {dialog?.type === 'link' && (
-            <TaskGoalLink
-              taskId={dialog.taskId}
-              availableGoals={activeGoals}
-              onLink={handleLinkSubmit}
-              onCancel={() => setDialog(null)}
-              isLoading={linkMutation.isPending}
             />
           )}
         </DialogContent>
