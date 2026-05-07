@@ -4,6 +4,10 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useAuthStore } from '@/store/auth.store'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
+import { DashboardPage } from '@/pages/dashboard/DashboardPage'
+import { TasksPage } from '@/pages/tasks/TasksPage'
+import { GoalsPage } from '@/pages/goals/GoalsPage'
+import { LedgerPage } from '@/pages/ledger/LedgerPage'
 
 function PlaceholderPage({ name }: { name: string }) {
   return (
@@ -57,10 +61,10 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { path: '/dashboard', element: <PlaceholderPage name="Dashboard" /> },
-      { path: '/tasks', element: <PlaceholderPage name="Tasks" /> },
-      { path: '/goals', element: <PlaceholderPage name="Goals" /> },
-      { path: '/ledger', element: <PlaceholderPage name="Ledger" /> },
+      { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/tasks', element: <TasksPage /> },
+      { path: '/goals', element: <GoalsPage /> },
+      { path: '/ledger', element: <LedgerPage /> },
     ],
   },
 ])
