@@ -7,8 +7,20 @@ export const authApi = {
     return response.data
   },
 
-  login: async (email: string, password: string): Promise<{ token: string }> => {
-    const response = await apiClient.post<{ token: string }>('/auth/login', { email, password })
+  login: async (email: string, password: string): Promise<{ accessToken: string }> => {
+    const response = await apiClient.post<{ accessToken: string }>('/auth/login', {
+      email,
+      password,
+    })
     return response.data
+  },
+
+  refreshToken: async (): Promise<{ accessToken: string }> => {
+    const response = await apiClient.post<{ accessToken: string }>('/auth/refresh-token')
+    return response.data
+  },
+
+  logout: async (): Promise<void> => {
+    await apiClient.post('/auth/logout')
   },
 }

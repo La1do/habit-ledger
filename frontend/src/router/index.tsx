@@ -9,25 +9,17 @@ import { TasksPage } from '@/pages/tasks/TasksPage'
 import { GoalsPage } from '@/pages/goals/GoalsPage'
 import { LedgerPage } from '@/pages/ledger/LedgerPage'
 
-function PlaceholderPage({ name }: { name: string }) {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <p className="text-muted-foreground">{name} — coming soon</p>
-    </div>
-  )
-}
-
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((state) => state.token)
-  if (!token) {
+  const accessToken = useAuthStore((state) => state.accessToken)
+  if (!accessToken) {
     return <Navigate to="/login" replace />
   }
   return <>{children}</>
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((state) => state.token)
-  if (token) {
+  const accessToken = useAuthStore((state) => state.accessToken)
+  if (accessToken) {
     return <Navigate to="/dashboard" replace />
   }
   return <>{children}</>

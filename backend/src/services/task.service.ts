@@ -42,7 +42,7 @@ export const createTask = async (
 };
 
 export const getTasks = async (user_id: string) => {
-  return prisma.task.findMany({ where: { id: user_id } });
+  return prisma.task.findMany({ where: { user_id } });
 };
 
 export const deleteTask = async (user_id: string, task_id: string) => {

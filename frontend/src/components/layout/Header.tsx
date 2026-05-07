@@ -1,15 +1,22 @@
 import { useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth.store'
 
 export function Header() {
   const navigate = useNavigate()
   const logout = useAuthStore((state) => state.logout)
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  const handleLogout = async () => {
+    try {
+      await authApi.logout()
+    } catch {
+      // ignore logout errors
+    } finally {
+      logout()
+      navigate('/login')
+    }
   }
 
   return (

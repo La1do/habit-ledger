@@ -6,7 +6,7 @@ import { AuthForm } from './components/AuthForm'
 
 export function RegisterPage() {
   const navigate = useNavigate()
-  const setToken = useAuthStore((state) => state.setToken)
+  const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -17,7 +17,7 @@ export function RegisterPage() {
       // Đăng ký xong tự động đăng nhập
       await authApi.register(data.email, data.password)
       const result = await authApi.login(data.email, data.password)
-      setToken(result.token)
+      setAccessToken(result.accessToken)
       navigate('/dashboard')
     } catch (err: unknown) {
       if (

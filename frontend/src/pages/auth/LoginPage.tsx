@@ -6,7 +6,7 @@ import { AuthForm } from './components/AuthForm'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const setToken = useAuthStore((state) => state.setToken)
+  const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -15,7 +15,7 @@ export function LoginPage() {
     setError(null)
     try {
       const result = await authApi.login(data.email, data.password)
-      setToken(result.token)
+      setAccessToken(result.accessToken)
       navigate('/dashboard')
     } catch (err: unknown) {
       if (
