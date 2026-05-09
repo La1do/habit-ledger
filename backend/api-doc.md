@@ -2,9 +2,9 @@
 
 Base URL: `http://localhost:3000/api`
 
-All protected routes require the header:
+Protected routes yêu cầu header:
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <accessToken>
 ```
 
 ---
@@ -16,51 +16,58 @@ Authorization: Bearer <token>
 
 **Request Body**
 ```json
-{
-  "email": "user@example.com",
-  "password": "abc123"
-}
+{ "email": "user@example.com", "password": "abc123" }
 ```
-
-**Validation**
-- `email`: đúng định dạng email
-- `password`: tối thiểu 6 ký tự, phải có cả chữ và số
 
 **Response 201**
 ```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "total_money": "0"
-}
-```
-
-**Response 400**
-```json
-{ "error": "User already exists" }
+{ "id": "uuid", "email": "user@example.com", "total_money": "0" }
 ```
 
 ---
 
 ### POST /auth/login
-Đăng nhập, nhận JWT token.
+Đăng nhập. Trả về `accessToken` + set httpOnly cookie `refreshToken`.
 
 **Request Body**
 ```json
-{
-  "email": "user@example.com",
-  "password": "abc123"
-}
+{ "email": "user@example.com", "password": "abc123" }
 ```
 
 **Response 200**
 ```json
-{ "token": "<jwt_token>" }
+{ "accessToken": "<jwt_access_token>" }
 ```
 
-**Response 400**
+Cookie được set tự động:
+```
+Set-Cookie: refreshToken=<jwt_refresh_token>; HttpOnly; SameSite=Strict; Max-Age=604800
+```
+
+---
+
+### POST /auth/refresh-token
+Lấy accessToken mới. Dùng refreshToken từ cookie (tự động gửi kèm).
+
+**Response 200**
 ```json
-{ "error": "Invalid email or password" }
+{ "accessToken": "<new_jwt_access_token>" }
+```
+
+**Response 401**
+```json
+{ "error": "No refresh token" }
+{ "error": "Invalid or expired refresh token" }
+```
+
+---
+
+### POST /auth/logout
+Đăng xuất — clear cookie refreshToken.
+
+**Response 200**
+```json
+{ "message": "Logged out" }
 ```
 
 ---
@@ -68,7 +75,7 @@ Authorization: Bearer <token>
 ## Tasks
 
 ### GET /tasks 🔒
-Lấy tất cả tasks của user hiện tại.
+Lấy tất cả tasks của user, kèm `taskGoals` (goals đã gắn với task).
 
 **Response 200**
 ```json
@@ -82,7 +89,15 @@ Lấy tất cả tasks của user hiện tại.
     "isRecurring": true,
     "repeatFrequency": "DAILY",
     "deadline": null,
-    "date": "2026-05-04T00:00:00.000Z"
+    "date": "2026-05-04T00:00:00.000Z",
+    "taskGoals": [
+      {
+        "task_id": "uuid",
+        "goal_id": "uuid",
+        "reward_amount": "50000",
+        "goal": { "id": "uuid", "title": "Mua laptop", "status": "ACTIVE" }
+      }
+    ]
   }
 ]
 ```
@@ -103,48 +118,21 @@ Tạo task mới.
 }
 ```
 
-**Fields**
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| title | string | ✅ | |
-| type | `Habit` \| `OneTime` | ✅ | |
-| isRecurring | boolean | ✅ | Habit phải là `true` |
-| repeatFrequency | `DAILY` \| `WEEKLY` \| `MONTHLY` | nếu isRecurring = true | |
-| deadline | ISO datetime | ❌ | |
+> **Lưu ý**: `deadline` phải là ISO-8601 DateTime đầy đủ (có time). Frontend tự động convert `YYYY-MM-DD` → `YYYY-MM-DDT00:00:00.000Z`.
 
 **Response 201** — task object
-
-**Response 400**
-```json
-{ "error": "Habits must be recurring" }
-```
 
 ---
 
 ### PUT /tasks/:task_id 🔒
 Cập nhật task (partial update).
 
-**Request Body** — tất cả fields đều optional
-```json
-{
-  "title": "Tên mới",
-  "status": "DONE_TODAY"
-}
-```
-
-**Status transition rule**: chỉ cho phép `PENDING → DONE_TODAY` qua endpoint này
-
 **Response 200** — updated task object
-
-**Response 400**
-```json
-{ "error": "Status can only be updated from PENDING to DONE_TODAY" }
-```
 
 ---
 
 ### DELETE /tasks/:task_id 🔒
-Xóa task.
+Xóa task và tất cả TaskGoal liên quan.
 
 **Response 200**
 ```json
@@ -157,25 +145,18 @@ Xóa task.
 Toggle trạng thái hoàn thành task.
 
 - `PENDING → DONE_TODAY`
-- `DONE_TODAY → PENDING` (undone)
+- `DONE_TODAY → PENDING`
 
-Chỉ đổi status, không cập nhật tiền (tiền được xử lý bởi scheduler).
+**Lưu ý**: Chỉ đổi status. Tiền được xử lý bởi scheduler khi deadline đến. Tuy nhiên `GET /goals` và `GET /users/me/summary` sẽ phản ánh pending reward ngay lập tức (computed, không lưu DB).
 
 **Response 200** — updated task object
-
-**Response 400**
-```json
-{ "error": "Task is already completed" }
-{ "error": "Cannot complete a missed task" }
-{ "error": "Cannot complete task past its deadline" }
-```
 
 ---
 
 ## Goals
 
 ### GET /goals 🔒
-Lấy tất cả goals của user (không bao gồm đã soft delete).
+Lấy tất cả goals của user. `current_amount` đã bao gồm **pending reward** từ tasks `DONE_TODAY` (computed, không lưu DB).
 
 **Response 200**
 ```json
@@ -185,13 +166,15 @@ Lấy tất cả goals của user (không bao gồm đã soft delete).
     "user_id": "uuid",
     "title": "Mua laptop",
     "target_amount": "10000000",
-    "current_amount": "500000",
+    "current_amount": "550000",
     "status": "ACTIVE",
     "is_saving": false,
     "deleted_at": null
   }
 ]
 ```
+
+> `current_amount` = DB value + pending từ tasks DONE_TODAY. Giá trị DB thật chỉ thay đổi khi scheduler chạy.
 
 ---
 
@@ -200,47 +183,27 @@ Tạo goal mới.
 
 **Request Body**
 ```json
-{
-  "title": "Mua laptop",
-  "target_amount": 10000000
-}
+{ "title": "Mua laptop", "target_amount": 10000000 }
 ```
-
-**Validation**
-- `title`: bắt buộc
-- `target_amount`: số thập phân, phải > 0
 
 **Response 201** — goal object
 
 ---
 
 ### PUT /goals/:goal_id 🔒
-Cập nhật goal (partial update).
+Cập nhật goal.
 
-**Request Body** — tất cả fields đều optional
+**Request Body**
 ```json
-{
-  "title": "Mua laptop gaming",
-  "target_amount": 15000000,
-  "is_saving": true
-}
+{ "title": "Mua laptop gaming", "target_amount": 15000000, "is_saving": true }
 ```
 
-**Validation**
-- `target_amount`: phải > 0 và >= `current_amount` (không được giảm xuống dưới số đã tích lũy)
-- `is_saving = true`: goal sẽ không bao giờ set `COMPLETED` dù đạt target
-
-**Response 200** — updated goal object
-
-**Response 400**
-```json
-{ "error": "target_amount cannot be less than current_amount" }
-```
+**Validation**: `target_amount` phải >= `current_amount` DB (không tính pending).
 
 ---
 
 ### GET /goals/:goal_id/history 🔒
-Lịch sử earn tiền của goal (chỉ SETTLED logs).
+Lịch sử earn tiền của goal (chỉ SETTLED logs từ CompletionLog).
 
 **Response 200**
 ```json
@@ -249,10 +212,7 @@ Lịch sử earn tiền của goal (chỉ SETTLED logs).
     "id": "uuid",
     "money_earned": "50000",
     "createdAt": "2026-05-04T00:01:00.000Z",
-    "task": {
-      "id": "uuid",
-      "title": "Đọc sách"
-    }
+    "task": { "id": "uuid", "title": "Đọc sách" }
   }
 ]
 ```
@@ -260,7 +220,7 @@ Lịch sử earn tiền của goal (chỉ SETTLED logs).
 ---
 
 ### DELETE /goals/:goal_id 🔒
-Soft delete goal — ẩn khỏi danh sách, không xóa khỏi DB.
+Soft delete goal.
 
 **Response 200**
 ```json
@@ -272,12 +232,12 @@ Soft delete goal — ẩn khỏi danh sách, không xóa khỏi DB.
 ## Users
 
 ### GET /users/me/summary 🔒
-Tổng quan ví và goals của user.
+Tổng quan ví và goals. `total_money` đã trừ **pending reward** từ tasks `DONE_TODAY` (computed, không lưu DB).
 
 **Response 200**
 ```json
 {
-  "total_money": 4500000,
+  "total_money": 4450000,
   "total_earned": 500000,
   "total_debt": 50000,
   "goals_completed": 2,
@@ -285,13 +245,7 @@ Tổng quan ví và goals của user.
 }
 ```
 
-| Field | Mô tả |
-|-------|-------|
-| total_money | Số tiền hiện có trong ví |
-| total_earned | Tổng tiền đã earn thành công (SETTLED) |
-| total_debt | Tổng tiền nợ (earn nhưng không đủ tiền trừ) |
-| goals_completed | Số goals đã đạt target |
-| goals_active | Số goals đang active |
+> `total_money` = DB value - pending từ tasks DONE_TODAY.
 
 ---
 
@@ -302,29 +256,12 @@ Gắn task với goal.
 
 **Request Body**
 ```json
-{
-  "goal_id": "uuid",
-  "reward_amount": 50000
-}
+{ "goal_id": "uuid", "reward_amount": 50000 }
 ```
-
-**Validation**
-- `goal_id`: bắt buộc, goal phải thuộc user
-- `reward_amount`: phải > 0
-- Không được gắn trùng
 
 **Response 201**
 ```json
-{
-  "task_id": "uuid",
-  "goal_id": "uuid",
-  "reward_amount": "50000"
-}
-```
-
-**Response 400**
-```json
-{ "error": "Task is already linked to this goal" }
+{ "task_id": "uuid", "goal_id": "uuid", "reward_amount": "50000" }
 ```
 
 ---
@@ -342,41 +279,11 @@ Bỏ gắn task khỏi goal.
 ## Scheduler
 
 ### POST /scheduler/run 🔒
-Trigger scheduler thủ công (dùng để test).
-
-Thực hiện:
-- Tasks `DONE_TODAY` → tính reward, ghi log, set `COMPLETED` (hoặc reset nếu recurring)
-- Tasks `PENDING` quá deadline → set `MISSED`
-- Goals đạt target → set `COMPLETED` (trừ khi `is_saving = true`)
+Trigger scheduler thủ công.
 
 **Response 200**
 ```json
-{
-  "message": "Scheduler ran successfully",
-  "confirmed": 3,
-  "missed": 1
-}
-```
-
----
-
-## Ledger — Immutable Hash Chain
-
-### Cơ chế
-
-Mỗi `CompletionLog` có 2 fields đặc biệt:
-
-| Field | Mô tả |
-|-------|-------|
-| `hash` | SHA-256 của `task_id + goal_id + user_id + money_earned + previousHash` |
-| `previousHash` | Hash của log liền trước (genesis = `"0000000000000000"`) |
-
-Nếu ai sửa 1 log → hash thay đổi → log sau không khớp → phát hiện gian lận.
-
-### Verify chain (future API)
-
-```
-GET /api/ledger/verify  — kiểm tra toàn bộ chain có hợp lệ không
+{ "message": "Scheduler ran successfully", "confirmed": 3, "missed": 1 }
 ```
 
 ---
