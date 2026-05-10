@@ -40,7 +40,7 @@ habit-ledger/
 ### 1. Clone repo
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/La1do/habit-ledger.git
 cd habit-ledger
 ```
 
