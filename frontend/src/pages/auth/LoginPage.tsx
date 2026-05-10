@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth.store'
 import { AuthForm } from './components/AuthForm'
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -16,6 +18,7 @@ export function LoginPage() {
     try {
       const result = await authApi.login(data.email, data.password)
       setAccessToken(result.accessToken)
+      queryClient.clear()
       navigate('/dashboard')
     } catch (err: unknown) {
       if (

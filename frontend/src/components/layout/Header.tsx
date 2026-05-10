@@ -1,11 +1,13 @@
 import { useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth.store'
 
 export function Header() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const logout = useAuthStore((state) => state.logout)
 
   const handleLogout = async () => {
@@ -15,6 +17,7 @@ export function Header() {
       // ignore logout errors
     } finally {
       logout()
+      queryClient.clear()
       navigate('/login')
     }
   }

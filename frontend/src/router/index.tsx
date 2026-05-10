@@ -8,6 +8,7 @@ import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { TasksPage } from '@/pages/tasks/TasksPage'
 import { GoalsPage } from '@/pages/goals/GoalsPage'
 import { LedgerPage } from '@/pages/ledger/LedgerPage'
+import { NotionSetupPage } from '@/pages/notion/NotionSetupPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const accessToken = useAuthStore((state) => state.accessToken)
@@ -57,6 +58,7 @@ export const router = createBrowserRouter([
       { path: '/tasks', element: <TasksPage /> },
       { path: '/goals', element: <GoalsPage /> },
       { path: '/ledger', element: <LedgerPage /> },
+      { path: '/notion/setup', element: <NotionSetupPage /> },
     ],
   },
 ])

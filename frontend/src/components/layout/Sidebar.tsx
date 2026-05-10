@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, CheckSquare, Target, BookOpen } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, Target, BookOpen, Plug } from 'lucide-react'
 import { cn } from '@/utils/cn'
 
 const navItems = [
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
   { to: '/goals', label: 'Goals', icon: Target },
   { to: '/ledger', label: 'Ledger', icon: BookOpen },
+  { to: '/notion/setup', label: 'Notion', icon: Plug },
 ]
 
 export function Sidebar() {
