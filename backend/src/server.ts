@@ -9,6 +9,7 @@ import goalRoutes from "./routes/goal.route";
 import rewardRoutes from "./routes/reward.route";
 import schedulerRoutes from "./routes/scheduler.route";
 import userRoutes from "./routes/user.route";
+import notionRoutes from "./routes/notion.routes";
 import prisma from "./config/prisma";
 import "./jobs/jobs"; // register cron job
 import { catchUpIfNeeded } from "./jobs/jobs";
@@ -27,6 +28,7 @@ app.use("/api/goals", goalRoutes);
 app.use("/api/tasks", rewardRoutes);
 app.use("/api/scheduler", schedulerRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/notion", notionRoutes);
 
 
 async function main() {

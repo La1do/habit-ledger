@@ -46,13 +46,14 @@ enum TaskType {
 }
 
 model User {
-  id             String          @id @default(uuid())
-  email          String          @unique
-  password       String
-  total_money    Decimal         @default(0)
-  goals          Goal[]
-  tasks          Task[]
-  completionLogs CompletionLog[]
+  id               String            @id @default(uuid())
+  email            String            @unique
+  password         String
+  total_money      Decimal           @default(0)
+  goals            Goal[]
+  tasks            Task[]
+  completionLogs   CompletionLog[]
+  notionConnection NotionConnection?
 }
 
 model Goal {
@@ -82,6 +83,7 @@ model Task {
   user            User             @relation(fields: [user_id], references: [id])
   taskGoals       TaskGoal[]
   completionLogs  CompletionLog[]
+  notionTask      NotionTask?
 }
 
 model TaskGoal {
@@ -115,4 +117,27 @@ model SchedulerRun {
   ran_at     DateTime @default(now())
   confirmed  Int
   missed     Int
+}
+
+model NotionConnection {
+  id           String       @id @default(uuid())
+  user_id      String       @unique
+  access_token String       // AES-256-GCM encrypted, format: iv:authTag:ciphertext (hex)
+  workspace_id String
+  page_id      String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  user         User         @relation(fields: [user_id], references: [id])
+  notionTasks  NotionTask[]
+}
+
+model NotionTask {
+  id              String           @id @default(uuid())
+  connection_id   String
+  notion_block_id String           @unique
+  task_id         String?          @unique
+  raw_title       String
+  createdAt       DateTime         @default(now())
+  connection      NotionConnection @relation(fields: [connection_id], references: [id])
+  task            Task?            @relation(fields: [task_id], references: [id])
 }
