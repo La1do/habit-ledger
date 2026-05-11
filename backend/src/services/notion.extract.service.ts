@@ -24,11 +24,16 @@ export async function getPageBlocks(
   let cursor: string | undefined;
 
   do {
-    const response = await notion.blocks.children.list({
+    // exactOptionalPropertyTypes: omit start_cursor khi undefined
+    const params: Parameters<typeof notion.blocks.children.list>[0] = {
       block_id: pageId,
-      start_cursor: cursor,
       page_size: 100,
-    });
+    };
+    if (cursor) {
+      params.start_cursor = cursor;
+    }
+
+    const response = await notion.blocks.children.list(params);
 
     const blocks = response.results.filter(
       (b): b is BlockObjectResponse => "type" in b
@@ -84,7 +89,7 @@ export async function upsertNotionTasks(
           raw_title: task.raw_title,
         },
         update: {
-          raw_title: task.raw_title, // update title nếu user đổi trong Notion
+          raw_title: task.raw_title,
         },
       })
     )
