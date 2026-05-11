@@ -5,6 +5,7 @@ doc.txt
 /src/scripts
 /src/generated/prisma
 .kiro
+STRUCTURE.md
 postman-tests.md
 # Test coverage output (auto-generated)
 coverage/

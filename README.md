@@ -14,6 +14,7 @@ HabitLedger cho phép người dùng:
 - Gắn task với goal và đặt **reward amount** — mỗi lần hoàn thành task, tiền tự động tích lũy vào goal
 - Theo dõi tiến độ goal theo thời gian thực
 - Xem lịch sử giao dịch minh bạch qua **immutable ledger** (hash chain)
+- Tích hợp **Notion** — tick checkbox trong Notion → reward tự động cộng vào goal, widget cập nhật real-time qua SSE
 
 ---
 
@@ -22,8 +23,14 @@ HabitLedger cho phép người dùng:
 ```
 habit-ledger/
 ├── backend/    # REST API — Node.js + Express + Prisma + PostgreSQL
+│   ├── src/    # Source code
+│   └── widget/ # Notion widget HTML template
 └── frontend/   # Web UI — React + Vite + TypeScript + Tailwind
 ```
+
+Xem chi tiết:
+- [Backend Structure](./backend/STRUCTURE.md)
+- [Frontend Structure](./frontend/STRUCTURE.md)
 
 ---
 
@@ -40,7 +47,7 @@ habit-ledger/
 ### 1. Clone repo
 
 ```bash
-git clone https://github.com/La1do/habit-ledger.git
+git clone <repo-url>
 cd habit-ledger
 ```
 
@@ -49,7 +56,7 @@ cd habit-ledger
 ```bash
 cd backend
 npm install
-cp .env.example .env   # Chỉnh sửa DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET
+cp .env.example .env   # Điền DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET
 docker-compose up -d   # Khởi động PostgreSQL
 npx prisma migrate dev # Chạy migrations
 npm run dev            # Server tại http://localhost:3000
@@ -75,8 +82,10 @@ npm run dev            # App tại http://localhost:5173
 | Express.js | HTTP framework |
 | Prisma | ORM |
 | PostgreSQL | Database |
-| JWT (dual token) | Authentication |
-| node-cron | Daily scheduler |
+| JWT (dual token) | Authentication (accessToken 15m + refreshToken 7d) |
+| node-cron | Daily scheduler (00:01) |
+| @notionhq/client | Notion API |
+| AI Provider Abstraction | Gemini / Groq / Anthropic (đổi qua env) |
 | Vitest | Testing |
 
 ### Frontend
@@ -114,9 +123,11 @@ npm run dev            # App tại http://localhost:5173
 - Tổng tiền đã earn, tổng nợ, số goals active/completed
 - Danh sách tasks cần làm hôm nay
 
-### Ledger
-- Lịch sử giao dịch theo từng goal
-- Dữ liệu từ `CompletionLog` — immutable, không thể sửa
+### Notion Integration
+- Connect Notion OAuth → chọn page todo list
+- AI gợi ý type/reward/goal cho từng task
+- Tick checkbox trong Notion → webhook → reward tự động cộng vào goal
+- Widget embed vào Notion với **SSE real-time update** (không cần reload)
 
 ### Authentication
 - Đăng ký / Đăng nhập
@@ -132,7 +143,6 @@ Khi user tick task → `DONE_TODAY`:
 - DB **không thay đổi** ngay
 - API tự tính và trả về `current_amount` của goal đã cộng pending
 - API tự tính và trả về `total_money` đã trừ pending
-- Mục đích: preview số tiền sẽ chuyển khi scheduler chạy
 
 ### Daily Scheduler (00:01 mỗi ngày)
 - Tasks `DONE_TODAY` → trừ tiền thật từ ví, cộng vào goal, ghi `CompletionLog`
@@ -145,10 +155,19 @@ Nếu ví không đủ tiền khi scheduler chạy → ghi `CompletionLog` với
 ### Immutable Ledger
 Mỗi `CompletionLog` có `hash` (SHA-256) và `previousHash` — phát hiện gian lận nếu ai sửa log.
 
+### AI Provider
+Đổi AI model chỉ cần sửa `.env`:
+```env
+AI_PROVIDER=groq        # groq | gemini | anthropic
+AI_MODEL=llama-3.1-8b-instant
+```
+
 ---
 
 ## Tài liệu chi tiết
 
 - [Backend README](./backend/README.md)
+- [Backend Structure](./backend/STRUCTURE.md)
 - [API Documentation](./backend/api-doc.md)
 - [Frontend README](./frontend/README.md)
+- [Frontend Structure](./frontend/STRUCTURE.md)
