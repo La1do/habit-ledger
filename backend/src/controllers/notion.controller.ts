@@ -134,7 +134,7 @@ export const extractPage = async (req: Request, res: Response): Promise<void> =>
   const userId = req.user?.id;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { page_id } = req.params;
+  const  page_id   = req.params.page_id as string;
 
   try {
     const connection = await prisma.notionConnection.findUnique({ where: { user_id: userId } });
@@ -349,7 +349,7 @@ export const webhookHandler = async (req: WebhookRequest, res: Response): Promis
 // Public route — không cần JWT header, verify qua URL param
 
 export const widgetHandler = async (req: Request, res: Response): Promise<void> => {
-  const { user_token } = req.params;
+  const user_token = req.params.user_token as string; 
 
   let userId: string;
   try {
