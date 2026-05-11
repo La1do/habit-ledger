@@ -17,7 +17,8 @@ import { suggestSetup } from "../services/notion.ai.service";
 import { verifyWebhookSignature, processWebhook } from "../services/notion.webhook.service";
 import { confirmSetup } from "../services/notion.confirm.service";
 import type { ConfirmTaskInput } from "../services/notion.confirm.service";
-import { getWidgetData, renderWidget } from "../services/notion.widget.service";
+import { getWidgetData, renderWidget, getWidgetDataFormatted } from "../services/notion.widget.service";
+import { addConnection, removeConnection } from "../services/widget.sse.service";
 import { decrypt } from "../utils/encrypt";
 import prisma from "../config/prisma";
 
@@ -143,7 +144,7 @@ export const extractPage = async (req: Request, res: Response): Promise<void> =>
     const accessToken = decrypt(connection.access_token);
     const blocks = await getPageBlocks(accessToken, page_id);
     const extractedTasks = parseToDoBlocks(blocks);
-    await upsertNotionTasks(connection.id, extractedTasks);
+    await upsertNotionTasks(connection.id, extractedTasks, page_id);
 
     const goals = await prisma.goal.findMany({
       where: { user_id: userId, deleted_at: null, status: "ACTIVE" },
@@ -219,6 +220,8 @@ export const webhookHandler = async (req: WebhookRequest, res: Response): Promis
   const signature = req.headers["notion-signature"] as string ?? "";
   const rawBody = req.rawBody?.toString("utf8") ?? "";
 
+  console.info(`[notion:webhook] Received request, rawBody length: ${rawBody.length}, signature: ${signature?.slice(0, 20)}...`);
+
   let payload: NotionWebhookPayload;
   try {
     payload = JSON.parse(rawBody) as NotionWebhookPayload;
@@ -288,6 +291,7 @@ export const webhookHandler = async (req: WebhookRequest, res: Response): Promis
 
 export const widgetHandler = async (req: Request, res: Response): Promise<void> => {
   const  user_token  = req.params.user_token as string;
+  console.info(`[widget] widgetHandler called, token prefix: ${user_token?.slice(0, 20)}...`);
 
   let userId: string;
   try {
@@ -301,11 +305,82 @@ export const widgetHandler = async (req: Request, res: Response): Promise<void> 
 
   try {
     const data = await getWidgetData(userId);
-    const html = renderWidget(data);
+    const html = renderWidget(data, user_token);
     res.setHeader("Content-Type", "text/html; charset=utf-8").send(html);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "unknown";
     console.error("[notion:widget] Error:", msg);
     res.status(500).send(`<p>Error loading widget: ${msg}</p>`);
+  }
+};
+
+// ─── GET /widget/events/:user_token ──────────────────────────────────────────
+// SSE endpoint — giữ connection mở, push "update" event khi có webhook
+
+export const widgetSseHandler = (req: Request, res: Response): void => {
+  const token = req.params["user_token"] as string;
+
+  let userId: string;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { user_id?: string; scope?: string };
+    if (payload.scope !== "widget" || !payload.user_id) throw new Error("Invalid scope");
+    userId = payload.user_id;
+  } catch {
+    res.status(401).end();
+    return;
+  }
+
+  // SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
+  res.flushHeaders();
+
+  // Send initial heartbeat
+  res.write(": connected\n\n");
+
+  // Register connection
+  addConnection(userId, res);
+
+  // Heartbeat mỗi 25s để giữ connection (proxy timeout)
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(": heartbeat\n\n");
+    } catch {
+      clearInterval(heartbeat);
+    }
+  }, 25000);
+
+  // Cleanup on disconnect
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    removeConnection(userId, res);
+  });
+};
+
+// ─── GET /widget/data/:user_token ─────────────────────────────────────────────
+// JSON endpoint — widget JS fetch khi nhận SSE update event
+
+export const widgetDataHandler = async (req: Request, res: Response): Promise<void> => {
+  const token = req.params["user_token"] as string;
+  console.info(`[widget:data] Request from origin: ${req.headers.origin ?? "none"}, referer: ${req.headers.referer ?? "none"}`);
+
+  let userId: string;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { user_id?: string; scope?: string };
+    if (payload.scope !== "widget" || !payload.user_id) throw new Error("Invalid scope");
+    userId = payload.user_id;
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+
+  try {
+    const data = await getWidgetDataFormatted(userId);
+    res.status(200).json(data);
+  } catch (err: unknown) {
+    console.error("[widget:data] Error:", err instanceof Error ? err.message : "unknown");
+    res.status(500).json({ error: "Failed to load data" });
   }
 };

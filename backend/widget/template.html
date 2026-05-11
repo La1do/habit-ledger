@@ -12,6 +12,7 @@
       --progress-bg: #e0e0e0;
       --progress-fill: #4ade80;
       --label: #6b7280;
+      --saving: #3b82f6;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -22,6 +23,7 @@
         --progress-bg: #3a3a3a;
         --progress-fill: #4ade80;
         --label: #9ca3af;
+        --saving: #60a5fa;
       }
     }
 
@@ -40,12 +42,24 @@
       border-radius: 8px;
       padding: 12px 16px;
       margin-bottom: 8px;
+      transition: opacity 0.2s;
     }
 
     .label {
       font-size: 12px;
       color: var(--label);
       margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .saving-badge {
+      font-size: 10px;
+      background: var(--saving);
+      color: white;
+      padding: 1px 5px;
+      border-radius: 4px;
     }
 
     .value {
@@ -65,7 +79,7 @@
       background: var(--progress-fill);
       border-radius: 4px;
       height: 100%;
-      transition: width 0.3s ease;
+      transition: width 0.5s ease;
     }
 
     .amounts {
@@ -75,57 +89,145 @@
       justify-content: space-between;
     }
 
+    .percent-label {
+      font-weight: 600;
+      color: var(--text);
+    }
+
     .no-goal {
       font-size: 13px;
       color: var(--label);
       font-style: italic;
     }
 
-    .refresh-hint {
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--label);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+      margin-top: 4px;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #9ca3af;
+      margin-right: 4px;
+      transition: background 0.3s;
+    }
+
+    .status-dot.live { background: #4ade80; }
+
+    .footer {
       font-size: 10px;
       color: var(--label);
       text-align: center;
       margin-top: 8px;
       opacity: 0.6;
     }
+
+    .updating { opacity: 0.6; }
   </style>
 </head>
 <body>
 
-  <!-- Block 1: Goal progress -->
-  <div class="card">
-    <div class="label">🎯 {{goal_name}}</div>
-    {{#if_goal}}
-    <div class="progress-bar">
-      <div class="progress-fill" style="width: {{goal_percent}}%"></div>
-    </div>
-    <div class="amounts">
-      <span>{{current_amount}} ₫</span>
-      <span>{{goal_percent}}%</span>
-      <span>{{target_amount}} ₫</span>
-    </div>
-    {{/if_goal}}
-    {{#no_goal}}
-    <div class="no-goal">Chưa có goal nào đang active</div>
-    {{/no_goal}}
-  </div>
+  <!-- Goals từ Notion tasks -->
+  <div class="section-title">Goals</div>
+  <div id="goals-container">{{goals_html}}</div>
 
-  <!-- Block 2: Total money -->
+  <!-- Total money -->
   <div class="card">
     <div class="label">💰 Số dư ví</div>
-    <div class="value">{{total_money}} ₫</div>
+    <div class="value" id="total-money">{{total_money}}</div>
   </div>
 
-  <!-- Block 3: Earned today -->
+  <!-- Earned today -->
   <div class="card">
     <div class="label">⚡ Hôm nay</div>
-    <div class="value">+{{earned_today}} ₫</div>
+    <div class="value" id="earned-today">{{earned_today}}</div>
   </div>
 
-  <div class="refresh-hint">Tự cập nhật mỗi 30 giây</div>
+  <div class="footer">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">Đang kết nối...</span>
+  </div>
 
   <script>
-    setInterval(() => location.reload(), 30000);
+    const TOKEN = '{{widget_token}}';
+    const BASE_URL = '{{base_url}}';
+
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    function setStatus(live, text) {
+      statusDot.className = 'status-dot' + (live ? ' live' : '');
+      statusText.textContent = text;
+    }
+
+    function buildGoalCard(goal) {
+      return `
+        <div class="card">
+          <div class="label">🎯 ${goal.title}${goal.is_saving ? ' <span class="saving-badge">Saving</span>' : ''}</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${goal.percent}%"></div>
+          </div>
+          <div class="amounts">
+            <span>${goal.current}</span>
+            <span class="percent-label">${goal.percent}%</span>
+            <span>${goal.target}</span>
+          </div>
+        </div>`;
+    }
+
+    async function fetchAndUpdate() {
+      try {
+        const res = await fetch(`${BASE_URL}/widget/data/${TOKEN}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Update goals
+        const container = document.getElementById('goals-container');
+        if (data.goals.length === 0) {
+          container.innerHTML = '<div class="card"><div class="label">🎯 Goals</div><div class="no-goal">Chưa có goal nào.</div></div>';
+        } else {
+          container.innerHTML = data.goals.map(buildGoalCard).join('');
+        }
+
+        // Update money
+        document.getElementById('total-money').textContent = data.totalMoney;
+        document.getElementById('earned-today').textContent = data.earnedToday;
+
+        setStatus(true, 'Live');
+      } catch (e) {
+        setStatus(false, 'Lỗi cập nhật');
+      }
+    }
+
+    // SSE connection
+    function connectSSE() {
+      const evtSource = new EventSource(`${BASE_URL}/widget/events/${TOKEN}`);
+
+      evtSource.onopen = () => setStatus(true, 'Live');
+
+      evtSource.addEventListener('update', () => {
+        fetchAndUpdate();
+      });
+
+      evtSource.onerror = () => {
+        setStatus(false, 'Mất kết nối — thử lại...');
+        evtSource.close();
+        // Reconnect sau 5s
+        setTimeout(connectSSE, 5000);
+      };
+    }
+
+    // Khởi động
+    connectSSE();
+    setStatus(false, 'Đang kết nối...');
   </script>
 </body>
 </html>

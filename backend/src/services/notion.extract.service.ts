@@ -7,6 +7,7 @@ import prisma from "../config/prisma";
 export interface ExtractedTask {
   notion_block_id: string;
   raw_title: string;
+  page_id?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -77,7 +78,8 @@ export function parseToDoBlocks(blocks: BlockObjectResponse[]): ExtractedTask[] 
 
 export async function upsertNotionTasks(
   connectionId: string,
-  tasks: ExtractedTask[]
+  tasks: ExtractedTask[],
+  pageId?: string
 ) {
   const results = await Promise.all(
     tasks.map((task) =>
@@ -87,9 +89,11 @@ export async function upsertNotionTasks(
           connection_id: connectionId,
           notion_block_id: task.notion_block_id,
           raw_title: task.raw_title,
+          page_id: pageId ?? task.page_id ?? null,
         },
         update: {
           raw_title: task.raw_title,
+          ...(pageId ?? task.page_id ? { page_id: pageId ?? task.page_id } : {}),
         },
       })
     )

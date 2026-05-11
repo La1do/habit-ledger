@@ -10,7 +10,7 @@ import rewardRoutes from "./routes/reward.route";
 import schedulerRoutes from "./routes/scheduler.route";
 import userRoutes from "./routes/user.route";
 import notionRoutes from "./routes/notion.routes";
-import { widgetHandler } from "./controllers/notion.controller";
+import { widgetHandler, widgetSseHandler, widgetDataHandler } from "./controllers/notion.controller";
 import prisma from "./config/prisma";
 import "./jobs/jobs"; // register cron job
 import { catchUpIfNeeded } from "./jobs/jobs";
@@ -43,8 +43,10 @@ app.use("/api/scheduler", schedulerRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/notion", notionRoutes);
 
-// Widget — public route, không cần auth header
+// Widget — public routes, không cần auth header
 app.get("/widget/:user_token", widgetHandler);
+app.get("/widget/events/:user_token", widgetSseHandler);
+app.get("/widget/data/:user_token", widgetDataHandler);
 
 
 async function main() {

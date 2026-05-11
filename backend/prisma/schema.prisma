@@ -137,6 +137,7 @@ model NotionTask {
   notion_block_id String           @unique
   task_id         String?          @unique
   raw_title       String
+  page_id         String?
   createdAt       DateTime         @default(now())
   connection      NotionConnection @relation(fields: [connection_id], references: [id])
   task            Task?            @relation(fields: [task_id], references: [id])

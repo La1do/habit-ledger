@@ -3,6 +3,7 @@ import { Client } from "@notionhq/client";
 import prisma from "../config/prisma";
 import { createLedgerLog } from "./ledger.service";
 import { decrypt } from "../utils/encrypt";
+import { notifyUser } from "./widget.sse.service";
 
 // ─── Signature verification ───────────────────────────────────────────────────
 
@@ -164,6 +165,9 @@ export async function processWebhook(
       });
     }
   });
+
+  // Push SSE event đến widget đang mở
+  notifyUser(task.user_id);
 
   return { ok: true };
 }

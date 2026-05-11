@@ -9,6 +9,8 @@ import {
   extractPage,
   confirmTasks,
   webhookHandler,
+  widgetSseHandler,
+  widgetDataHandler,
 } from "../controllers/notion.controller";
 
 const router = Router();
